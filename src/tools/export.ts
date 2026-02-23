@@ -7,6 +7,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { logger } from '../logger.js';
+import { registerTool } from './tool-helper.js';
 
 // Command function type for KiCAD script calls
 type CommandFunction = (command: string, params: Record<string, unknown>) => Promise<any>;
@@ -23,7 +24,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export Gerber Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_gerber",
     {
       outputDir: z.string().describe("Directory to save Gerber files"),
@@ -56,7 +57,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export PDF Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_pdf",
     {
       outputPath: z.string().describe("Path to save the PDF file"),
@@ -87,7 +88,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export SVG Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_svg",
     {
       outputPath: z.string().describe("Path to save the SVG file"),
@@ -116,7 +117,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export 3D Model Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_3d",
     {
       outputPath: z.string().describe("Path to save the 3D model file"),
@@ -149,7 +150,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export BOM Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_bom",
     {
       outputPath: z.string().describe("Path to save the BOM file"),
@@ -178,7 +179,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export Netlist Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_netlist",
     {
       outputPath: z.string().describe("Path to save the netlist file"),
@@ -203,7 +204,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export Position File Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_position_file",
     {
       outputPath: z.string().describe("Path to save the position file"),
@@ -232,7 +233,7 @@ export function registerExportTools(server: McpServer, callKicadScript: CommandF
   // ------------------------------------------------------
   // Export VRML Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "export_vrml",
     {
       outputPath: z.string().describe("Path to save the VRML file"),

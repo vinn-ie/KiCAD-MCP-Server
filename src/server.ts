@@ -162,7 +162,7 @@ export class KiCADMcpServer {
   private requestQueue: Array<{ request: any, resolve: Function, reject: Function }> = [];
   private processingRequest = false;
   private responseBuffer: string = '';
-  private currentRequestHandler: { resolve: Function, reject: Function, timeoutHandle: NodeJS.Timeout } | null = null;
+  private currentRequestHandler: { resolve: Function, reject: Function, timeoutHandle: ReturnType<typeof setTimeout> } | null = null;
   
   /**
    * Constructor for the KiCAD MCP Server

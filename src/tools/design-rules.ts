@@ -7,6 +7,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { logger } from '../logger.js';
+import { registerTool } from './tool-helper.js';
 
 // Command function type for KiCAD script calls
 type CommandFunction = (command: string, params: Record<string, unknown>) => Promise<any>;
@@ -23,7 +24,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Set Design Rules Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "set_design_rules",
     {
       clearance: z.number().optional().describe("Minimum clearance between copper items (mm)"),
@@ -57,7 +58,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Get Design Rules Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "get_design_rules",
     {},
     async () => {
@@ -76,7 +77,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Run DRC Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "run_drc",
     {
       reportPath: z.string().optional().describe("Optional path to save the DRC report")
@@ -97,7 +98,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Add Net Class Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "add_net_class",
     {
       name: z.string().describe("Name of the net class"),
@@ -140,7 +141,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Assign Net to Class Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "assign_net_to_class",
     {
       net: z.string().describe("Name of the net"),
@@ -165,7 +166,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Set Layer Constraints Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "set_layer_constraints",
     {
       layer: z.string().describe("Layer name (e.g., 'F.Cu')"),
@@ -196,7 +197,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Check Clearance Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "check_clearance",
     {
       item1: z.object({
@@ -239,7 +240,7 @@ export function registerDesignRuleTools(server: McpServer, callKicadScript: Comm
   // ------------------------------------------------------
   // Get DRC Violations Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "get_drc_violations",
     {
       severity: z.enum(["error", "warning", "all"]).optional().describe("Filter violations by severity")

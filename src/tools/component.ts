@@ -5,6 +5,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { logger } from '../logger.js';
+import { registerTool } from './tool-helper.js';
 
 // Command function type for KiCAD script calls
 type CommandFunction = (command: string, params: Record<string, unknown>) => Promise<any>;
@@ -21,7 +22,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Place Component Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "place_component",
     {
       componentId: z.string().describe("Identifier for the component to place (e.g., 'R_0603_10k')"),
@@ -60,7 +61,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Move Component Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "move_component",
     {
       reference: z.string().describe("Reference designator of the component (e.g., 'R5')"),
@@ -91,7 +92,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Rotate Component Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "rotate_component",
     {
       reference: z.string().describe("Reference designator of the component (e.g., 'R5')"),
@@ -116,7 +117,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Delete Component Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "delete_component",
     {
       reference: z.string().describe("Reference designator of the component to delete (e.g., 'R5')")
@@ -137,7 +138,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Edit Component Properties Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "edit_component",
     {
       reference: z.string().describe("Reference designator of the component (e.g., 'R5')"),
@@ -166,7 +167,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Find Component Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "find_component",
     {
       reference: z.string().optional().describe("Reference designator to search for"),
@@ -188,7 +189,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Get Component Properties Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "get_component_properties",
     {
       reference: z.string().describe("Reference designator of the component (e.g., 'R5')")
@@ -209,7 +210,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Add Component Annotation Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "add_component_annotation",
     {
       reference: z.string().describe("Reference designator of the component (e.g., 'R5')"),
@@ -236,7 +237,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Group Components Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "group_components",
     {
       references: z.array(z.string()).describe("Reference designators of components to group"),
@@ -261,7 +262,7 @@ export function registerComponentTools(server: McpServer, callKicadScript: Comma
   // ------------------------------------------------------
   // Replace Component Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "replace_component",
     {
       reference: z.string().describe("Reference designator of the component to replace"),

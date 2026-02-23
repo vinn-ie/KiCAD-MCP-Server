@@ -83,7 +83,7 @@ export function registerRouterTools(server: McpServer, callKicadScript: CommandF
     {
       category: z.string().describe("Category name from list_tool_categories")
     },
-    async ({ category }) => {
+    async ({ category }: { category: string }) => {
       logger.debug(`Getting tools for category: ${category}`);
 
       const categoryData = getCategory(category);
@@ -132,7 +132,7 @@ export function registerRouterTools(server: McpServer, callKicadScript: CommandF
       tool_name: z.string().describe("Tool name from get_category_tools"),
       params: z.record(z.unknown()).optional().describe("Tool parameters (optional)")
     },
-    async ({ tool_name, params }) => {
+    async ({ tool_name, params }: { tool_name: string, params?: Record<string, unknown> }) => {
       logger.info(`Executing routed tool: ${tool_name}`);
 
       // Check if tool exists in registry
@@ -189,16 +189,21 @@ export function registerRouterTools(server: McpServer, callKicadScript: CommandF
       try {
         const result = await handler(params || {});
 
-        // The handler already returns MCP-formatted response
-        // Just add metadata
+        // Handlers return MCP-formatted { content: [...] } responses.
+        // Unwrap the text content rather than nesting it in another JSON blob.
+        let responseText: string;
+        if (result && Array.isArray(result.content) && result.content.length > 0) {
+          responseText = result.content
+            .map((c: any) => (typeof c.text === 'string' ? c.text : JSON.stringify(c)))
+            .join('\n');
+        } else {
+          responseText = JSON.stringify(result, null, 2);
+        }
+
         return {
           content: [{
             type: "text",
-            text: JSON.stringify({
-              tool: tool_name,
-              category: category,
-              ...result
-            }, null, 2)
+            text: `[${category}/${tool_name}]\n${responseText}`
           }]
         };
       } catch (error) {
@@ -224,7 +229,7 @@ export function registerRouterTools(server: McpServer, callKicadScript: CommandF
     {
       query: z.string().describe("Search term (e.g., 'gerber', 'zone', 'export', 'drc')")
     },
-    async ({ query }) => {
+    async ({ query }: { query: string }) => {
       logger.debug(`Searching tools for: ${query}`);
 
       const matches = registrySearchTools(query);

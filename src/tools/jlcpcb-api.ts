@@ -5,10 +5,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { registerTool } from './tool-helper.js';
 
 export function registerJLCPCBApiTools(server: McpServer, callKicadScript: Function) {
   // Download JLCPCB parts database
-  server.tool(
+  registerTool(server, 
     "download_jlcpcb_database",
     `Download the complete JLCPCB parts catalog to local database.
 
@@ -47,7 +48,7 @@ for fast offline searching.`,
   );
 
   // Search JLCPCB parts
-  server.tool(
+  registerTool(server, 
     "search_jlcpcb_parts",
     `Search JLCPCB parts catalog by specifications.
 
@@ -111,7 +112,7 @@ Use this to find components with exact specifications and cost optimization.`,
   );
 
   // Get JLCPCB part details
-  server.tool(
+  registerTool(server, 
     "get_jlcpcb_part",
     "Get detailed information about a specific JLCPCB part by LCSC number",
     {
@@ -162,7 +163,7 @@ Use this to find components with exact specifications and cost optimization.`,
   );
 
   // Get JLCPCB database statistics
-  server.tool(
+  registerTool(server, 
     "get_jlcpcb_database_stats",
     "Get statistics about the local JLCPCB parts database",
     {},
@@ -193,7 +194,7 @@ Use this to find components with exact specifications and cost optimization.`,
   );
 
   // Suggest alternative parts
-  server.tool(
+  registerTool(server, 
     "suggest_jlcpcb_alternatives",
     `Suggest alternative JLCPCB parts for a given component.
 

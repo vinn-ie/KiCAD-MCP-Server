@@ -5,10 +5,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { registerTool } from './tool-helper.js';
 
 export function registerSymbolLibraryTools(server: McpServer, callKicadScript: Function) {
   // List available symbol libraries
-  server.tool(
+  registerTool(server, 
     "list_symbol_libraries",
     "List all available KiCAD symbol libraries from global sym-lib-table",
     {},
@@ -36,7 +37,7 @@ export function registerSymbolLibraryTools(server: McpServer, callKicadScript: F
   );
 
   // Search for symbols across all libraries
-  server.tool(
+  registerTool(server, 
     "search_symbols",
     `Search for symbols in local KiCAD symbol libraries.
 
@@ -95,7 +96,7 @@ Returns symbol references that can be used directly in schematics.`,
   );
 
   // List symbols in a specific library
-  server.tool(
+  registerTool(server, 
     "list_library_symbols",
     "List all symbols in a specific KiCAD symbol library",
     {
@@ -132,7 +133,7 @@ Returns symbol references that can be used directly in schematics.`,
   );
 
   // Get detailed information about a specific symbol
-  server.tool(
+  registerTool(server, 
     "get_symbol_info",
     "Get detailed information about a specific symbol",
     {

@@ -4,10 +4,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { registerTool } from './tool-helper.js';
 
 export function registerRoutingTools(server: McpServer, callKicadScript: Function) {
   // Add net tool
-  server.tool(
+  registerTool(server, 
     "add_net",
     "Create a new net on the PCB",
     {
@@ -26,7 +27,7 @@ export function registerRoutingTools(server: McpServer, callKicadScript: Functio
   );
 
   // Route trace tool
-  server.tool(
+  registerTool(server, 
     "route_trace",
     "Route a trace between two points",
     {
@@ -56,7 +57,7 @@ export function registerRoutingTools(server: McpServer, callKicadScript: Functio
   );
 
   // Add via tool
-  server.tool(
+  registerTool(server, 
     "add_via",
     "Add a via to the PCB",
     {
@@ -80,7 +81,7 @@ export function registerRoutingTools(server: McpServer, callKicadScript: Functio
   );
 
   // Add copper pour tool
-  server.tool(
+  registerTool(server, 
     "add_copper_pour",
     "Add a copper pour (ground/power plane) to the PCB",
     {

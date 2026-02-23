@@ -5,10 +5,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { logger } from '../logger.js';
+import { registerTool } from './tool-helper.js';
 
 export function registerUITools(server: McpServer, callKicadScript: Function) {
   // Check if KiCAD UI is running
-  server.tool(
+  registerTool(server, 
     "check_kicad_ui",
     "Check if KiCAD UI is currently running",
     {},
@@ -25,7 +26,7 @@ export function registerUITools(server: McpServer, callKicadScript: Function) {
   );
 
   // Launch KiCAD UI
-  server.tool(
+  registerTool(server, 
     "launch_kicad_ui",
     "Launch KiCAD UI, optionally with a project file",
     {
