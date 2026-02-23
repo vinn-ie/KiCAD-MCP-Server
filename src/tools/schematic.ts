@@ -4,10 +4,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { registerTool } from './tool-helper.js';
 
 export function registerSchematicTools(server: McpServer, callKicadScript: Function) {
   // Create schematic tool
-  server.tool(
+  registerTool(server, 
     "create_schematic",
     "Create a new schematic",
     {
@@ -26,7 +27,7 @@ export function registerSchematicTools(server: McpServer, callKicadScript: Funct
   );
 
   // Add component to schematic
-  server.tool(
+  registerTool(server, 
     "add_schematic_component",
     "Add a component to the schematic. Symbol format is 'Library:SymbolName' (e.g., 'Device:R', 'EDA-MCP:ESP32-C3')",
     {
@@ -78,7 +79,7 @@ export function registerSchematicTools(server: McpServer, callKicadScript: Funct
   );
 
   // Connect components with wire
-  server.tool(
+  registerTool(server, 
     "add_wire",
     "Add a wire connection in the schematic",
     {
@@ -103,7 +104,7 @@ export function registerSchematicTools(server: McpServer, callKicadScript: Funct
   );
 
   // Add pin-to-pin connection
-  server.tool(
+  registerTool(server, 
     "add_schematic_connection",
     "Connect two component pins with a wire",
     {
@@ -134,7 +135,7 @@ export function registerSchematicTools(server: McpServer, callKicadScript: Funct
   );
 
   // Add net label
-  server.tool(
+  registerTool(server, 
     "add_schematic_net_label",
     "Add a net label to the schematic",
     {
@@ -163,7 +164,7 @@ export function registerSchematicTools(server: McpServer, callKicadScript: Funct
   );
 
   // Connect pin to net
-  server.tool(
+  registerTool(server, 
     "connect_to_net",
     "Connect a component pin to a named net",
     {
@@ -193,7 +194,7 @@ export function registerSchematicTools(server: McpServer, callKicadScript: Funct
   );
 
   // Get net connections
-  server.tool(
+  registerTool(server, 
     "get_net_connections",
     "Get all connections for a named net",
     {
@@ -224,7 +225,7 @@ export function registerSchematicTools(server: McpServer, callKicadScript: Funct
   );
 
   // Generate netlist
-  server.tool(
+  registerTool(server, 
     "generate_netlist",
     "Generate a netlist from the schematic",
     {

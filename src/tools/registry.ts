@@ -112,6 +112,27 @@ export const toolCategories: ToolCategory[] = [
       "add_via",
       "add_copper_pour"
     ]
+  },
+  {
+    name: "symbol_library",
+    description: "KiCAD symbol library access: search, browse, get symbol information",
+    tools: [
+      "list_symbol_libraries",
+      "search_symbols",
+      "list_library_symbols",
+      "get_symbol_info"
+    ]
+  },
+  {
+    name: "jlcpcb",
+    description: "JLCPCB/LCSC parts catalog: search, pricing, alternatives",
+    tools: [
+      "download_jlcpcb_database",
+      "search_jlcpcb_parts",
+      "get_jlcpcb_part",
+      "get_jlcpcb_database_stats",
+      "suggest_jlcpcb_alternatives"
+    ]
   }
 ];
 

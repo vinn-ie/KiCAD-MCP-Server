@@ -5,10 +5,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { registerTool } from './tool-helper.js';
 
 export function registerLibraryTools(server: McpServer, callKicadScript: Function) {
   // List available footprint libraries
-  server.tool(
+  registerTool(server, 
     "list_libraries",
     "List all available KiCAD footprint libraries",
     {
@@ -39,7 +40,7 @@ export function registerLibraryTools(server: McpServer, callKicadScript: Functio
   );
 
   // Search for footprints across all libraries
-  server.tool(
+  registerTool(server, 
     "search_footprints",
     "Search for footprints matching a pattern across all libraries",
     {
@@ -77,7 +78,7 @@ export function registerLibraryTools(server: McpServer, callKicadScript: Functio
   );
 
   // List footprints in a specific library
-  server.tool(
+  registerTool(server, 
     "list_library_footprints",
     "List all footprints in a specific KiCAD library",
     {
@@ -113,7 +114,7 @@ export function registerLibraryTools(server: McpServer, callKicadScript: Functio
   );
 
   // Get detailed information about a specific footprint
-  server.tool(
+  registerTool(server, 
     "get_footprint_info",
     "Get detailed information about a specific footprint",
     {

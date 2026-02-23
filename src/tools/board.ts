@@ -7,6 +7,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { logger } from '../logger.js';
+import { registerTool } from './tool-helper.js';
 
 // Command function type for KiCAD script calls
 type CommandFunction = (command: string, params: Record<string, unknown>) => Promise<any>;
@@ -23,7 +24,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Set Board Size Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "set_board_size",
     {
       width: z.number().describe("Board width"),
@@ -50,7 +51,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Add Layer Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "add_layer",
     {
       name: z.string().describe("Layer name"),
@@ -83,7 +84,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Set Active Layer Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "set_active_layer",
     {
       layer: z.string().describe("Layer name to set as active")
@@ -104,7 +105,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Get Board Info Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "get_board_info",
     {},
     async () => {
@@ -123,7 +124,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Get Layer List Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "get_layer_list",
     {},
     async () => {
@@ -142,7 +143,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Add Board Outline Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "add_board_outline",
     {
       shape: z.enum(["rectangle", "circle", "polygon"]).describe("Shape of the outline"),
@@ -188,7 +189,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Add Mounting Hole Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "add_mounting_hole",
     {
       position: z.object({
@@ -219,7 +220,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Add Text Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "add_board_text",
     {
       text: z.string().describe("Text content"),
@@ -258,7 +259,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Add Zone Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "add_zone",
     {
       layer: z.string().describe("Layer for the zone"),
@@ -298,7 +299,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Get Board Extents Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "get_board_extents",
     {
       unit: z.enum(["mm", "inch"]).optional().describe("Unit of measurement for the result")
@@ -319,7 +320,7 @@ export function registerBoardTools(server: McpServer, callKicadScript: CommandFu
   // ------------------------------------------------------
   // Get Board 2D View Tool
   // ------------------------------------------------------
-  server.tool(
+  registerTool(server, 
     "get_board_2d_view",
     {
       layers: z.array(z.string()).optional().describe("Optional array of layer names to include"),

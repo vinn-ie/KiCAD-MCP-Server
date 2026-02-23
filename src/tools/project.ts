@@ -4,10 +4,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { registerTool } from './tool-helper.js';
 
 export function registerProjectTools(server: McpServer, callKicadScript: Function) {
   // Create project tool
-  server.tool(
+  registerTool(server, 
     "create_project",
     "Create a new KiCAD project",
     {
@@ -26,7 +27,7 @@ export function registerProjectTools(server: McpServer, callKicadScript: Functio
   );
 
   // Open project tool
-  server.tool(
+  registerTool(server, 
     "open_project",
     "Open an existing KiCAD project",
     {
@@ -44,7 +45,7 @@ export function registerProjectTools(server: McpServer, callKicadScript: Functio
   );
 
   // Save project tool
-  server.tool(
+  registerTool(server, 
     "save_project",
     "Save the current KiCAD project",
     {
@@ -62,7 +63,7 @@ export function registerProjectTools(server: McpServer, callKicadScript: Functio
   );
 
   // Get project info tool
-  server.tool(
+  registerTool(server, 
     "get_project_info",
     "Get information about the current KiCAD project",
     {},
