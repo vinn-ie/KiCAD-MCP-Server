@@ -278,6 +278,145 @@ class KiCADServer {
             },
             required: ['schematicPath', 'outputPath']
           }
+        },
+
+        // Phase 2: Core Schematic CRUD Operations
+        {
+          name: 'get_schematic_components',
+          description: 'Return a JSON list of all placed components in a KiCAD schematic, including reference designators, values, and X/Y coordinates',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the .kicad_sch file' }
+            },
+            required: ['schematicPath']
+          }
+        },
+        {
+          name: 'move_schematic_component',
+          description: 'Move a schematic component to a new position by reference designator',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' },
+              reference: { type: 'string', description: 'Component reference designator (e.g. R1, C2)' },
+              x: { type: 'number', description: 'New X coordinate in mm' },
+              y: { type: 'number', description: 'New Y coordinate in mm' }
+            },
+            required: ['schematicPath', 'reference', 'x', 'y']
+          }
+        },
+        {
+          name: 'delete_schematic_component',
+          description: 'Remove a component block from a KiCAD schematic by reference designator',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' },
+              reference: { type: 'string', description: 'Component reference designator to delete (e.g. R1)' }
+            },
+            required: ['schematicPath', 'reference']
+          }
+        },
+        {
+          name: 'delete_schematic_wire',
+          description: 'Remove wire segments from a KiCAD schematic matching given coordinate bounds',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' },
+              startPoint: { type: 'array', description: 'Wire start point [x, y]', items: { type: 'number' }, minItems: 2, maxItems: 2 },
+              endPoint: { type: 'array', description: 'Wire end point [x, y]', items: { type: 'number' }, minItems: 2, maxItems: 2 }
+            },
+            required: ['schematicPath']
+          }
+        },
+
+        // Phase 3: KiCAD-Specific Workflow Tools
+        {
+          name: 'add_power_symbol',
+          description: 'Place a KiCAD power symbol (GND, VCC, +3V3, etc.) in a schematic',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' },
+              power_net: { type: 'string', description: 'Power net name (e.g. GND, VCC, +3V3, +5V)' },
+              x: { type: 'number', description: 'X position in schematic' },
+              y: { type: 'number', description: 'Y position in schematic' },
+              rotation: { type: 'number', description: 'Rotation angle in degrees', default: 0 }
+            },
+            required: ['schematicPath', 'power_net', 'x', 'y']
+          }
+        },
+        {
+          name: 'assign_footprint',
+          description: 'Assign a PCB footprint to a schematic component by reference designator',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' },
+              reference: { type: 'string', description: 'Component reference designator (e.g. R1)' },
+              footprint: { type: 'string', description: 'KiCAD footprint library path (e.g. Package_TO_SOT_SMD:SOT-23)' }
+            },
+            required: ['schematicPath', 'reference', 'footprint']
+          }
+        },
+        {
+          name: 'run_erc',
+          description: 'Run an Electrical Rules Check on a KiCAD schematic, returning errors and warnings so the LLM can self-correct',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' }
+            },
+            required: ['schematicPath']
+          }
+        },
+
+        // Phase 4: JLCPCB Pipeline
+        {
+          name: 'batch_add_components',
+          description: 'Add multiple schematic components in a single call to avoid repeated round-trips',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' },
+              components: {
+                type: 'array',
+                description: 'Array of component definitions',
+                items: {
+                  type: 'object',
+                  properties: {
+                    type: { type: 'string', description: 'Component type (e.g. R, C, LED)' },
+                    reference: { type: 'string', description: 'Reference designator (e.g. R1)' },
+                    value: { type: 'string', description: 'Component value (e.g. 10k)' },
+                    library: { type: 'string', description: 'Symbol library name' },
+                    x: { type: 'number', description: 'X position' },
+                    y: { type: 'number', description: 'Y position' },
+                    rotation: { type: 'number', description: 'Rotation in degrees' }
+                  },
+                  required: ['type', 'reference']
+                }
+              }
+            },
+            required: ['schematicPath', 'components']
+          }
+        },
+        {
+          name: 'place_jlcpcb_component',
+          description: 'Place a JLCPCB/LCSC component in the schematic by LCSC part number. Automatically fetches the symbol, injects it, places it, and returns pin locations for auto-wiring.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              schematicPath: { type: 'string', description: 'Path to the schematic file' },
+              lcsc_number: { type: 'string', description: 'LCSC part number (e.g. C25804)' },
+              reference: { type: 'string', description: 'Reference designator to use (e.g. U1)' },
+              x: { type: 'number', description: 'X position in schematic' },
+              y: { type: 'number', description: 'Y position in schematic' },
+              rotation: { type: 'number', description: 'Rotation angle in degrees', default: 0 }
+            },
+            required: ['schematicPath', 'lcsc_number', 'reference', 'x', 'y']
+          }
         }
       ]
     }));
@@ -292,7 +431,7 @@ class KiCADServer {
         return await this.callKicadScript(toolName, args);
       } catch (error) {
         console.error(`Error executing tool ${toolName}:`, error);
-        throw new Error(`Unknown tool: ${toolName}`);
+        throw error;
       }
     });
   }
@@ -419,6 +558,9 @@ class KiCADServer {
             
             // If we get here, we have a valid JSON response
             console.error(`Completed KiCAD command: ${request.command} with result: ${JSON.stringify(result)}`);
+            
+            // Clear the timeout since we got a response
+            clearTimeout(timeout);
             
             // Reset processing flag
             this.processingRequest = false;

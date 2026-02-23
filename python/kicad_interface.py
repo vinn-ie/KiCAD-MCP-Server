@@ -368,6 +368,21 @@ class KiCADInterface:
             "list_schematic_libraries": self._handle_list_schematic_libraries,
             "export_schematic_pdf": self._handle_export_schematic_pdf,
 
+            # Phase 2: Core Schematic CRUD
+            "get_schematic_components": self._handle_get_schematic_components,
+            "move_schematic_component": self._handle_move_schematic_component,
+            "delete_schematic_component": self._handle_delete_schematic_component,
+            "delete_schematic_wire": self._handle_delete_schematic_wire,
+
+            # Phase 3: KiCAD-Specific Workflow Tools
+            "add_power_symbol": self._handle_add_power_symbol,
+            "assign_footprint": self._handle_assign_footprint,
+            "run_erc": self._handle_run_erc,
+
+            # Phase 4: JLCPCB Pipeline
+            "batch_add_components": self._handle_batch_add_components,
+            "place_jlcpcb_component": self._handle_place_jlcpcb_component,
+
             # UI/Process management commands
             "check_kicad_ui": self._handle_check_kicad_ui,
             "launch_kicad_ui": self._handle_launch_kicad_ui,
@@ -875,6 +890,726 @@ class KiCADInterface:
             return {"success": True, "netlist": netlist}
         except Exception as e:
             logger.error(f"Error generating netlist: {str(e)}")
+            return {"success": False, "message": str(e)}
+
+    # =========================================================================
+    # Phase 2: Core Schematic CRUD Operations
+    # =========================================================================
+
+    def _handle_get_schematic_components(self, params):
+        """Return a JSON list of all placed components in the schematic."""
+        logger.info("Getting schematic components")
+        try:
+            import sexpdata
+            from pathlib import Path
+
+            schematic_path = params.get("schematicPath")
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+
+            with open(schematic_path, 'r', encoding='utf-8') as f:
+                sch_data = sexpdata.loads(f.read())
+
+            components = []
+            sym = sexpdata.Symbol
+
+            for item in sch_data:
+                if not (isinstance(item, list) and len(item) > 0 and item[0] == sym('symbol')):
+                    continue
+
+                # Extract properties
+                props = {}
+                at_x, at_y, at_rot = 0.0, 0.0, 0.0
+                lib_id = ""
+                in_bom = True
+
+                for sub in item[1:]:
+                    if not isinstance(sub, list) or len(sub) < 2:
+                        continue
+                    key = sub[0]
+                    if key == sym('lib_id') and isinstance(sub[1], str):
+                        lib_id = sub[1]
+                    elif key == sym('at') and len(sub) >= 3:
+                        try:
+                            at_x = float(sub[1])
+                            at_y = float(sub[2])
+                            at_rot = float(sub[3]) if len(sub) > 3 else 0.0
+                        except (TypeError, ValueError):
+                            pass
+                    elif key == sym('in_bom'):
+                        in_bom = str(sub[1]).lower() not in ('no', 'false')
+                    elif key == sym('property') and len(sub) >= 3 and isinstance(sub[1], str):
+                        props[sub[1]] = sub[2]
+
+                ref = props.get('Reference', '')
+                value = props.get('Value', '')
+
+                # Skip hidden template symbols (reference starts with _TEMPLATE)
+                if ref.startswith('_TEMPLATE'):
+                    continue
+
+                components.append({
+                    "reference": ref,
+                    "value": value,
+                    "lib_id": lib_id,
+                    "x": at_x,
+                    "y": at_y,
+                    "rotation": at_rot,
+                    "footprint": props.get('Footprint', ''),
+                    "datasheet": props.get('Datasheet', ''),
+                    "in_bom": in_bom,
+                })
+
+            return {"success": True, "components": components, "count": len(components)}
+        except Exception as e:
+            logger.error(f"Error getting schematic components: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    def _handle_move_schematic_component(self, params):
+        """Move a schematic component to a new position."""
+        logger.info("Moving schematic component")
+        try:
+            import sexpdata
+            from pathlib import Path
+
+            schematic_path = params.get("schematicPath")
+            reference = params.get("reference")
+            new_x = params.get("x")
+            new_y = params.get("y")
+
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+            if not reference:
+                return {"success": False, "message": "reference is required"}
+            if new_x is None or new_y is None:
+                return {"success": False, "message": "x and y coordinates are required"}
+
+            with open(schematic_path, 'r', encoding='utf-8') as f:
+                sch_data = sexpdata.loads(f.read())
+
+            sym = sexpdata.Symbol
+            moved = False
+
+            for item in sch_data:
+                if not (isinstance(item, list) and len(item) > 0 and item[0] == sym('symbol')):
+                    continue
+
+                # Find Reference property
+                ref_val = None
+                for sub in item[1:]:
+                    if isinstance(sub, list) and len(sub) >= 3 and sub[0] == sym('property'):
+                        if sub[1] == 'Reference':
+                            ref_val = sub[2]
+                            break
+
+                if ref_val != reference:
+                    continue
+
+                # Update (at x y rotation)
+                for i, sub in enumerate(item):
+                    if isinstance(sub, list) and len(sub) >= 3 and sub[0] == sym('at'):
+                        rotation = float(sub[3]) if len(sub) > 3 else 0.0
+                        item[i] = [sym('at'), float(new_x), float(new_y), rotation]
+                        moved = True
+                        break
+
+                if moved:
+                    # Also update property at positions (move them relative to new component pos)
+                    break
+
+            if not moved:
+                return {"success": False, "message": f"Component '{reference}' not found"}
+
+            with open(schematic_path, 'w', encoding='utf-8') as f:
+                f.write(sexpdata.dumps(sch_data))
+
+            return {"success": True, "message": f"Moved {reference} to ({new_x}, {new_y})"}
+        except Exception as e:
+            logger.error(f"Error moving schematic component: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    def _handle_delete_schematic_component(self, params):
+        """Remove a component block from the schematic by reference designator."""
+        logger.info("Deleting schematic component")
+        try:
+            import sexpdata
+            from pathlib import Path
+
+            schematic_path = params.get("schematicPath")
+            reference = params.get("reference")
+
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+            if not reference:
+                return {"success": False, "message": "reference is required"}
+
+            with open(schematic_path, 'r', encoding='utf-8') as f:
+                sch_data = sexpdata.loads(f.read())
+
+            sym = sexpdata.Symbol
+            indices_to_remove = []
+
+            for i, item in enumerate(sch_data):
+                if not (isinstance(item, list) and len(item) > 0 and item[0] == sym('symbol')):
+                    continue
+                for sub in item[1:]:
+                    if isinstance(sub, list) and len(sub) >= 3 and sub[0] == sym('property'):
+                        if sub[1] == 'Reference' and sub[2] == reference:
+                            indices_to_remove.append(i)
+                            break
+
+            if not indices_to_remove:
+                return {"success": False, "message": f"Component '{reference}' not found"}
+
+            for i in reversed(indices_to_remove):
+                del sch_data[i]
+
+            with open(schematic_path, 'w', encoding='utf-8') as f:
+                f.write(sexpdata.dumps(sch_data))
+
+            return {"success": True, "message": f"Deleted component '{reference}'", "removed": len(indices_to_remove)}
+        except Exception as e:
+            logger.error(f"Error deleting schematic component: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    def _handle_delete_schematic_wire(self, params):
+        """Remove wire segments matching the given coordinate bounds from the schematic."""
+        logger.info("Deleting schematic wire")
+        try:
+            import sexpdata
+            from pathlib import Path
+
+            schematic_path = params.get("schematicPath")
+            start_point = params.get("startPoint")  # [x, y]
+            end_point = params.get("endPoint")        # [x, y]
+
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+
+            with open(schematic_path, 'r', encoding='utf-8') as f:
+                sch_data = sexpdata.loads(f.read())
+
+            sym = sexpdata.Symbol
+
+            def _coords_match(val, ref, tol=0.01):
+                try:
+                    return abs(float(val) - float(ref)) < tol
+                except (TypeError, ValueError):
+                    return False
+
+            indices_to_remove = []
+            for i, item in enumerate(sch_data):
+                if not (isinstance(item, list) and len(item) > 0 and item[0] == sym('wire')):
+                    continue
+
+                # Wire S-expr: (wire (pts (xy x1 y1) (xy x2 y2)) ...)
+                for sub in item[1:]:
+                    if not (isinstance(sub, list) and len(sub) > 0 and sub[0] == sym('pts')):
+                        continue
+                    pts = [p for p in sub[1:] if isinstance(p, list) and len(p) >= 3 and p[0] == sym('xy')]
+                    if len(pts) < 2:
+                        continue
+
+                    wx1, wy1 = float(pts[0][1]), float(pts[0][2])
+                    wx2, wy2 = float(pts[1][1]), float(pts[1][2])
+
+                    match = False
+                    if start_point and end_point:
+                        sx, sy = float(start_point[0]), float(start_point[1])
+                        ex, ey = float(end_point[0]), float(end_point[1])
+                        match = ((_coords_match(wx1, sx) and _coords_match(wy1, sy) and
+                                  _coords_match(wx2, ex) and _coords_match(wy2, ey)) or
+                                 (_coords_match(wx1, ex) and _coords_match(wy1, ey) and
+                                  _coords_match(wx2, sx) and _coords_match(wy2, sy)))
+                    elif start_point:
+                        sx, sy = float(start_point[0]), float(start_point[1])
+                        match = ((_coords_match(wx1, sx) and _coords_match(wy1, sy)) or
+                                 (_coords_match(wx2, sx) and _coords_match(wy2, sy)))
+                    else:
+                        # No filter → remove all wires (use with care)
+                        match = True
+
+                    if match:
+                        indices_to_remove.append(i)
+                    break
+
+            if not indices_to_remove:
+                return {"success": False, "message": "No matching wire segments found"}
+
+            for i in reversed(indices_to_remove):
+                del sch_data[i]
+
+            with open(schematic_path, 'w', encoding='utf-8') as f:
+                f.write(sexpdata.dumps(sch_data))
+
+            return {"success": True, "message": f"Deleted {len(indices_to_remove)} wire segment(s)", "removed": len(indices_to_remove)}
+        except Exception as e:
+            logger.error(f"Error deleting schematic wire: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    # =========================================================================
+    # Phase 3: KiCAD-Specific Workflow Tools
+    # =========================================================================
+
+    def _handle_add_power_symbol(self, params):
+        """Place a KiCAD power symbol (GND, VCC, +3V3, etc.) in the schematic."""
+        logger.info("Adding power symbol to schematic")
+        try:
+            import sexpdata
+            import uuid as _uuid
+            from pathlib import Path
+            from commands.dynamic_symbol_loader import DynamicSymbolLoader
+
+            schematic_path = params.get("schematicPath")
+            power_net = params.get("power_net")   # e.g. "GND", "VCC", "+3V3"
+            x = float(params.get("x", 0))
+            y = float(params.get("y", 0))
+            rotation = float(params.get("rotation", 0))
+
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+            if not power_net:
+                return {"success": False, "message": "power_net is required (e.g. GND, VCC, +3V3)"}
+
+            sch_path = Path(schematic_path)
+            sym = sexpdata.Symbol
+
+            # Inject power symbol from the Power library
+            loader = DynamicSymbolLoader()
+            try:
+                loader.inject_symbol_into_schematic(sch_path, "power", power_net)
+                logger.info(f"Injected power symbol: power:{power_net}")
+            except Exception as e:
+                logger.warning(f"Could not inject power symbol from library: {e}. Using minimal fallback.")
+
+            with open(schematic_path, 'r', encoding='utf-8') as f:
+                sch_data = sexpdata.loads(f.read())
+
+            full_lib_id = f"power:{power_net}"
+            new_uuid = str(_uuid.uuid4())
+
+            # Build minimal power flag symbol instance
+            power_instance = [
+                sym('symbol'),
+                [sym('lib_id'), full_lib_id],
+                [sym('at'), x, y, rotation],
+                [sym('unit'), 1],
+                [sym('in_bom'), sym('yes')],
+                [sym('on_board'), sym('yes')],
+                [sym('dnp'), sym('no')],
+                [sym('uuid'), new_uuid],
+                [sym('property'), "Reference",
+                 f"#{power_net}",
+                 [sym('at'), x, y - 2.54, rotation],
+                 [sym('effects'), [sym('font'), [sym('size'), 1.27, 1.27]]]
+                ],
+                [sym('property'), "Value",
+                 power_net,
+                 [sym('at'), x, y + 2.54, rotation],
+                 [sym('effects'), [sym('font'), [sym('size'), 1.27, 1.27]]]
+                ],
+                [sym('property'), "Footprint",
+                 "",
+                 [sym('at'), x, y, rotation],
+                 [sym('effects'), [sym('font'), [sym('size'), 1.27, 1.27]], sym('hide')]
+                ],
+                [sym('property'), "Datasheet",
+                 "~",
+                 [sym('at'), x, y, rotation],
+                 [sym('effects'), [sym('font'), [sym('size'), 1.27, 1.27]], sym('hide')]
+                ],
+            ]
+
+            # Insert before sheet_instances
+            insert_idx = len(sch_data)
+            for i, item in enumerate(sch_data):
+                if isinstance(item, list) and len(item) > 0 and item[0] == sym('sheet_instances'):
+                    insert_idx = i
+                    break
+            sch_data.insert(insert_idx, power_instance)
+
+            with open(schematic_path, 'w', encoding='utf-8') as f:
+                f.write(sexpdata.dumps(sch_data))
+
+            return {
+                "success": True,
+                "message": f"Added power symbol '{power_net}' at ({x}, {y})",
+                "net": power_net,
+                "x": x,
+                "y": y,
+            }
+        except Exception as e:
+            logger.error(f"Error adding power symbol: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    def _handle_assign_footprint(self, params):
+        """Assign a PCB footprint to a schematic component by reference."""
+        logger.info("Assigning footprint to schematic component")
+        try:
+            import sexpdata
+            from pathlib import Path
+
+            schematic_path = params.get("schematicPath")
+            reference = params.get("reference")
+            footprint = params.get("footprint")   # e.g. "Package_TO_SOT_SMD:SOT-23"
+
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+            if not reference:
+                return {"success": False, "message": "reference is required"}
+            if footprint is None:
+                return {"success": False, "message": "footprint is required"}
+
+            with open(schematic_path, 'r', encoding='utf-8') as f:
+                sch_data = sexpdata.loads(f.read())
+
+            sym = sexpdata.Symbol
+            updated = False
+
+            for item in sch_data:
+                if not (isinstance(item, list) and len(item) > 0 and item[0] == sym('symbol')):
+                    continue
+
+                ref_val = None
+                fp_idx = None
+                for j, sub in enumerate(item):
+                    if isinstance(sub, list) and len(sub) >= 3 and sub[0] == sym('property'):
+                        if sub[1] == 'Reference':
+                            ref_val = sub[2]
+                        elif sub[1] == 'Footprint':
+                            fp_idx = j
+
+                if ref_val != reference:
+                    continue
+
+                if fp_idx is not None:
+                    item[fp_idx][2] = footprint
+                else:
+                    # Add Footprint property
+                    item.append([sym('property'), "Footprint", footprint,
+                                 [sym('at'), 0, 0, 0],
+                                 [sym('effects'), [sym('font'), [sym('size'), 1.27, 1.27]], sym('hide')]])
+                updated = True
+                break
+
+            if not updated:
+                return {"success": False, "message": f"Component '{reference}' not found"}
+
+            with open(schematic_path, 'w', encoding='utf-8') as f:
+                f.write(sexpdata.dumps(sch_data))
+
+            return {"success": True, "message": f"Assigned footprint '{footprint}' to {reference}"}
+        except Exception as e:
+            logger.error(f"Error assigning footprint: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    def _handle_run_erc(self, params):
+        """Run a basic Electrical Rules Check on the schematic."""
+        logger.info("Running ERC")
+        try:
+            import subprocess
+            import sexpdata
+            from pathlib import Path
+
+            schematic_path = params.get("schematicPath")
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+
+            # Try kicad-cli first (KiCAD 7+)
+            try:
+                result = subprocess.run(
+                    ["kicad-cli", "sch", "erc", "--output", "-", schematic_path],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0 or result.stdout:
+                    return {
+                        "success": True,
+                        "method": "kicad-cli",
+                        "output": result.stdout,
+                        "errors": result.stderr,
+                    }
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                logger.info("kicad-cli not available, falling back to basic schematic analysis")
+
+            # Fallback: basic S-expression analysis
+            with open(schematic_path, 'r', encoding='utf-8') as f:
+                sch_data = sexpdata.loads(f.read())
+
+            sym = sexpdata.Symbol
+            warnings = []
+            errors = []
+            refs_seen: dict = {}
+
+            for item in sch_data:
+                if not (isinstance(item, list) and len(item) > 0 and item[0] == sym('symbol')):
+                    continue
+                ref_val = None
+                in_bom = True
+                for sub in item[1:]:
+                    if isinstance(sub, list) and len(sub) >= 3 and sub[0] == sym('property'):
+                        if sub[1] == 'Reference':
+                            ref_val = sub[2]
+                    if isinstance(sub, list) and len(sub) >= 2 and sub[0] == sym('in_bom'):
+                        in_bom = str(sub[1]).lower() not in ('no', 'false')
+
+                if ref_val and not ref_val.startswith('_TEMPLATE'):
+                    if ref_val in refs_seen:
+                        errors.append(f"Duplicate reference designator: {ref_val}")
+                    else:
+                        refs_seen[ref_val] = True
+                    if ref_val.endswith('?') and in_bom:
+                        warnings.append(f"Unassigned reference designator: {ref_val}")
+
+            return {
+                "success": True,
+                "method": "basic",
+                "errors": errors,
+                "warnings": warnings,
+                "error_count": len(errors),
+                "warning_count": len(warnings),
+                "passed": len(errors) == 0,
+            }
+        except Exception as e:
+            logger.error(f"Error running ERC: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    # =========================================================================
+    # Phase 4: JLCPCB Pipeline
+    # =========================================================================
+
+    def _handle_batch_add_components(self, params):
+        """Add multiple schematic components in a single call."""
+        logger.info("Batch adding schematic components")
+        try:
+            schematic_path = params.get("schematicPath")
+            components = params.get("components", [])
+
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+            if not components:
+                return {"success": False, "message": "components list is required"}
+
+            results = []
+            for comp in components:
+                result = self._handle_add_schematic_component({
+                    "schematicPath": schematic_path,
+                    "component": comp,
+                })
+                results.append({
+                    "reference": comp.get("reference", "?"),
+                    "success": result.get("success", False),
+                    "message": result.get("message", ""),
+                })
+
+            all_ok = all(r["success"] for r in results)
+            return {
+                "success": all_ok,
+                "results": results,
+                "added": sum(1 for r in results if r["success"]),
+                "failed": sum(1 for r in results if not r["success"]),
+            }
+        except Exception as e:
+            logger.error(f"Error in batch_add_components: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {"success": False, "message": str(e)}
+
+    def _lcsc_to_kicad_symbol(self, lcsc_number: str):
+        """
+        Map an LCSC part number to a KiCAD library:symbol name.
+
+        Tries:
+        1. Local JLCPCB parts database (fast)
+        2. JLCSearch API (network)
+        Returns a dict with keys: library, symbol, value, footprint, datasheet
+        """
+        try:
+            # Try local database first
+            parts_manager = JLCPCBPartsManager()
+            db_path = parts_manager.get_db_path()
+            if db_path.exists():
+                parts = parts_manager.search_parts(lcsc_number, limit=5)
+                for part in parts:
+                    db_lcsc = part.get('lcsc', '').upper().lstrip('C')
+                    query_lcsc = lcsc_number.upper().lstrip('C')
+                    if db_lcsc == query_lcsc:
+                        return self._map_jlcpcb_part_to_kicad(part)
+
+            # Try JLCSearch API
+            try:
+                from commands.jlcsearch import JLCSearch
+                searcher = JLCSearch()
+                results = searcher.search(lcsc_number, limit=5)
+                for r in results:
+                    api_lcsc = str(r.get('lcsc', '')).upper().lstrip('C')
+                    query_lcsc = lcsc_number.upper().lstrip('C')
+                    if api_lcsc == query_lcsc:
+                        return self._map_jlcpcb_part_to_kicad(r)
+            except Exception as api_err:
+                logger.warning(f"JLCSearch lookup failed: {api_err}")
+
+        except Exception as e:
+            logger.warning(f"lcsc_to_kicad_symbol lookup failed: {e}")
+
+        # Fallback: return generic
+        return {
+            "library": "Device",
+            "symbol": "R",
+            "value": lcsc_number,
+            "footprint": "",
+            "datasheet": "",
+        }
+
+    def _map_jlcpcb_part_to_kicad(self, part: dict) -> dict:
+        """Map a JLCPCB/JLCSearch part record to a KiCAD symbol spec."""
+        # Common LCSC → KiCAD symbol heuristics based on category/type
+        description = (part.get('description') or part.get('describe') or '').lower()
+        package = (part.get('package') or part.get('componentSpecificationEn') or '').lower()
+        category = (part.get('firstSortName') or part.get('category') or '').lower()
+        mfr_part = part.get('mfr_part') or part.get('componentModelEn') or ''
+        value = part.get('value') or mfr_part
+
+        # Attempt category-based mapping
+        library = 'Device'
+        symbol = 'C'
+        if 'resistor' in description or 'resistor' in category:
+            symbol = 'R'
+        elif 'capacitor' in description or 'capacitor' in category:
+            symbol = 'C'
+        elif 'inductor' in description or 'inductor' in category:
+            symbol = 'L'
+        elif 'diode' in description or 'diode' in category:
+            symbol = 'D'
+        elif 'led' in description:
+            symbol = 'LED'
+        elif 'transistor' in description or 'mosfet' in description:
+            symbol = 'Q_NMOS_GSD'
+            library = 'Device'
+        elif 'regulator' in description or 'ldo' in description:
+            symbol = 'Regulator_Linear'
+            library = 'Regulator_Linear'
+        elif 'mcu' in description or 'microcontroller' in description:
+            library = 'MCU_Microchip_ATmega'
+            symbol = 'ATmega328P-AU'
+
+        footprints = part.get('footprints') or []
+        footprint = footprints[0] if footprints else ''
+
+        return {
+            "library": library,
+            "symbol": symbol,
+            "value": value or mfr_part,
+            "footprint": footprint,
+            "datasheet": part.get('datasheet', ''),
+        }
+
+    def _handle_place_jlcpcb_component(self, params):
+        """
+        Place a JLCPCB/LCSC component in the schematic by LCSC number.
+
+        Inputs: lcsc_number, reference, x, y, schematicPath
+        Returns placed component info including pin locations.
+        """
+        logger.info("Placing JLCPCB component")
+        try:
+            from pathlib import Path
+            from commands.dynamic_symbol_loader import DynamicSymbolLoader
+            from commands.pin_locator import PinLocator
+            import sexpdata
+
+            schematic_path = params.get("schematicPath")
+            lcsc_number = params.get("lcsc_number") or params.get("lcscNumber")
+            reference = params.get("reference")
+            x = float(params.get("x", 0))
+            y = float(params.get("y", 0))
+            rotation = float(params.get("rotation", 0))
+
+            if not schematic_path:
+                return {"success": False, "message": "schematicPath is required"}
+            if not lcsc_number:
+                return {"success": False, "message": "lcsc_number is required"}
+            if not reference:
+                return {"success": False, "message": "reference is required"}
+
+            sch_path = Path(schematic_path)
+
+            # Step 1: Map LCSC → KiCAD symbol
+            kicad_info = self._lcsc_to_kicad_symbol(lcsc_number)
+            library = kicad_info["library"]
+            symbol = kicad_info["symbol"]
+            value = kicad_info["value"]
+            footprint = kicad_info["footprint"]
+
+            logger.info(f"Mapped {lcsc_number} → {library}:{symbol}")
+
+            # Step 2: Inject symbol definition into schematic lib_symbols
+            loader = DynamicSymbolLoader()
+            try:
+                loader.inject_symbol_into_schematic(sch_path, library, symbol)
+            except Exception as inject_err:
+                logger.warning(f"Symbol injection failed: {inject_err}, proceeding anyway")
+
+            # Step 3: Add the component instance
+            component_def = {
+                "type": symbol,
+                "library": library,
+                "reference": reference,
+                "value": value,
+                "footprint": footprint,
+                "datasheet": kicad_info.get("datasheet", ""),
+                "x": x,
+                "y": y,
+                "rotation": rotation,
+            }
+            result = self._handle_add_schematic_component({
+                "schematicPath": schematic_path,
+                "component": component_def,
+            })
+
+            if not result.get("success"):
+                return result
+
+            # Step 4: Discover pin locations
+            pin_locations = []
+            try:
+                locator = PinLocator()
+                pins = locator.get_all_pin_locations(sch_path, reference)
+                for pin_name, pin_x, pin_y in pins:
+                    pin_locations.append({"name": pin_name, "x": pin_x, "y": pin_y})
+            except Exception as pin_err:
+                logger.warning(f"Pin location discovery failed: {pin_err}")
+
+            return {
+                "success": True,
+                "reference": reference,
+                "lcsc_number": lcsc_number,
+                "library": library,
+                "symbol": symbol,
+                "value": value,
+                "footprint": footprint,
+                "x": x,
+                "y": y,
+                "pin_locations": pin_locations,
+                "message": f"Placed {lcsc_number} ({reference}) at ({x}, {y})",
+            }
+        except Exception as e:
+            logger.error(f"Error placing JLCPCB component: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {"success": False, "message": str(e)}
 
     def _handle_check_kicad_ui(self, params):

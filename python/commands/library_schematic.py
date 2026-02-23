@@ -2,6 +2,9 @@ from skip import Schematic
 # Symbol class might not be directly importable in the current version
 import os
 import glob
+import logging
+
+logger = logging.getLogger('kicad_interface')
 
 class LibraryManager:
     """Manage symbol libraries"""
@@ -26,11 +29,11 @@ class LibraryManager:
                 matching_libs = glob.glob(path_pattern, recursive=True)
                 libraries.extend(matching_libs)
             except Exception as e:
-                print(f"Error searching for libraries at {path_pattern}: {e}")
+                logger.warning(f"Error searching for libraries at {path_pattern}: {e}")
 
         # Extract library names from paths
         library_names = [os.path.splitext(os.path.basename(lib))[0] for lib in libraries]
-        print(f"Found {len(library_names)} libraries: {', '.join(library_names[:10])}{'...' if len(library_names) > 10 else ''}")
+        logger.info(f"Found {len(library_names)} libraries: {', '.join(library_names[:10])}{'...' if len(library_names) > 10 else ''}")
         
         # Return both full paths and library names
         return {"paths": libraries, "names": library_names}
@@ -50,7 +53,7 @@ class LibraryManager:
             print(f"Attempted to list symbols in library {library_path}. This requires advanced implementation.")
             return []
         except Exception as e:
-            print(f"Error listing symbols in library {library_path}: {e}")
+            logger.warning(f"Error listing symbols in library {library_path}: {e}")
             return []
 
     @staticmethod
@@ -59,10 +62,10 @@ class LibraryManager:
         try:
             # Similar to list_library_symbols, this might require a more direct approach
             # using KiCAD's Python API or by parsing the symbol library.
-            print(f"Attempted to get details for symbol {symbol_name} in library {library_path}. This requires advanced implementation.")
+            logger.debug(f"Attempted to get details for symbol {symbol_name} in library {library_path}. This requires advanced implementation.")
             return {}
         except Exception as e:
-            print(f"Error getting symbol details for {symbol_name} in {library_path}: {e}")
+            logger.warning(f"Error getting symbol details for {symbol_name} in {library_path}: {e}")
             return {}
 
     @staticmethod
@@ -78,10 +81,10 @@ class LibraryManager:
             libraries = LibraryManager.list_available_libraries(search_paths)
             
             results = []
-            print(f"Searched for symbols matching '{query}'. This requires advanced implementation.")
+            logger.debug(f"Searched for symbols matching '{query}'. This requires advanced implementation.")
             return results
         except Exception as e:
-            print(f"Error searching for symbols matching '{query}': {e}")
+            logger.warning(f"Error searching for symbols matching '{query}': {e}")
             return []
             
     @staticmethod

@@ -129,6 +129,9 @@ class DynamicSymbolLoader:
         """
         Extract a specific symbol definition from a library file
 
+        Handles variant symbols that use the 'extends' keyword by merging
+        graphics and pins from the parent symbol.
+
         Args:
             library_path: Path to .kicad_sym file
             symbol_name: Name of symbol to extract (e.g., "R", "LED")
@@ -143,27 +146,120 @@ class DynamicSymbolLoader:
 
         parsed_lib = self.parse_library_file(library_path)
 
-        # Library structure: (kicad_symbol_lib (version ...) (generator ...) (symbol ...) (symbol ...) ...)
-        # We need to find the symbol with matching name
-
+        # Build a map of all top-level symbols first (for extends resolution)
+        all_symbols: dict = {}
         for item in parsed_lib:
             if isinstance(item, list) and len(item) > 0:
                 if item[0] == Symbol('symbol'):
-                    # Symbol structure: (symbol "Name" ...)
                     if len(item) > 1 and isinstance(item[1], str):
-                        # Handle both "Device:R" and "R" formats
                         item_name = item[1]
                         if ':' in item_name:
                             item_name = item_name.split(':')[1]
+                        all_symbols[item_name] = item
 
-                        if item_name == symbol_name:
-                            logger.info(f"Found symbol definition: {symbol_name}")
-                            # Cache and return
-                            self.symbol_cache[cache_key] = item
-                            return item
+        # Find the requested symbol
+        raw_symbol = all_symbols.get(symbol_name)
+        if raw_symbol is None:
+            logger.warning(f"Symbol '{symbol_name}' not found in {library_path.name}")
+            return None
 
-        logger.warning(f"Symbol '{symbol_name}' not found in {library_path.name}")
-        return None
+        # Check for 'extends' keyword and resolve inheritance
+        resolved_symbol = self._resolve_extends(raw_symbol, all_symbols, library_path.name)
+
+        logger.info(f"Found symbol definition: {symbol_name}")
+        self.symbol_cache[cache_key] = resolved_symbol
+        return resolved_symbol
+
+    def _resolve_extends(self, symbol_def: List, all_symbols: dict, lib_name: str) -> List:
+        """
+        Resolve 'extends' inheritance for a symbol definition.
+
+        If the symbol has (extends "ParentName"), copy the parent's graphics
+        and pin definitions into this symbol so it can be used standalone.
+
+        Args:
+            symbol_def: The symbol S-expression list
+            all_symbols: Map of symbol_name -> symbol_def for the whole library
+            lib_name: Library filename for logging
+
+        Returns:
+            Resolved symbol with parent graphics/pins merged in
+        """
+        # Look for (extends "ParentName") in the symbol
+        parent_name = None
+        for item in symbol_def:
+            if isinstance(item, list) and len(item) >= 2:
+                if item[0] == Symbol('extends') and isinstance(item[1], str):
+                    parent_name = item[1]
+                    break
+
+        if parent_name is None:
+            return symbol_def  # No inheritance, return as-is
+
+        logger.info(f"Symbol '{symbol_def[1]}' extends '{parent_name}' - resolving inheritance")
+
+        parent_def = all_symbols.get(parent_name)
+        if parent_def is None:
+            logger.warning(f"Parent symbol '{parent_name}' not found in {lib_name}, cannot resolve extends")
+            return symbol_def
+
+        # Recursively resolve parent (it may also extend something)
+        parent_def = self._resolve_extends(parent_def, all_symbols, lib_name)
+
+        # Collect graphics/pin items from parent that are not in child
+        # Child items (non-extends) take precedence
+        INHERITABLE_KEYWORDS = {Symbol('symbol'), Symbol('pin'), Symbol('polyline'),
+                                 Symbol('rectangle'), Symbol('arc'), Symbol('circle'),
+                                 Symbol('bezier'), Symbol('text')}
+
+        # Gather sub-symbol blocks from parent (the actual graphics/pins live inside
+        # nested (symbol "Name_1_1" ...) blocks)
+        parent_sub_symbols = []
+        parent_props = {}
+        for item in parent_def:
+            if isinstance(item, list) and len(item) > 0:
+                if item[0] == Symbol('symbol'):
+                    parent_sub_symbols.append(item)
+                elif item[0] == Symbol('property') and len(item) > 2 and isinstance(item[1], str):
+                    parent_props[item[1]] = item
+
+        # Check which sub-symbols child already defines
+        child_sub_symbol_names = set()
+        for item in symbol_def:
+            if isinstance(item, list) and len(item) > 1 and item[0] == Symbol('symbol'):
+                child_sub_symbol_names.add(item[1])
+
+        # Build merged symbol: start with child items (minus 'extends'), add parent sub-symbols
+        merged = [symbol_def[0], symbol_def[1]]  # (symbol "Name")
+        for item in symbol_def[2:]:
+            if isinstance(item, list) and len(item) >= 2 and item[0] == Symbol('extends'):
+                continue  # Drop the extends declaration
+            merged.append(item)
+
+        # Add parent sub-symbols that child doesn't override
+        for psym in parent_sub_symbols:
+            if isinstance(psym, list) and len(psym) > 1:
+                psym_name = psym[1]
+                # Rename to match child symbol name prefix if needed
+                child_base = str(symbol_def[1])
+                parent_base = str(parent_def[1])
+                if isinstance(psym_name, str) and psym_name.startswith(parent_base):
+                    new_name = child_base + psym_name[len(parent_base):]
+                    psym = list(psym)
+                    psym[1] = new_name
+                if psym[1] not in child_sub_symbol_names:
+                    merged.append(psym)
+
+        # Inherit parent properties that child doesn't define
+        child_prop_names = set()
+        for item in symbol_def:
+            if isinstance(item, list) and len(item) > 2 and item[0] == Symbol('property') and isinstance(item[1], str):
+                child_prop_names.add(item[1])
+        for prop_name, prop_item in parent_props.items():
+            if prop_name not in child_prop_names:
+                merged.append(prop_item)
+
+        return merged
 
     def inject_symbol_into_schematic(self, schematic_path: Path, library_name: str, symbol_name: str) -> bool:
         """
